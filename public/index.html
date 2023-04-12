@@ -29,7 +29,7 @@
 
 	request.done(function( msg ) {
         msg.forEach(function(a,b) {
-			if (a.TRASHCAN_LEVEL >= 80) {	
+			if (a.TRASHCAN_LEVEL >= 80) {
 				// TRASHCAN_LEVEL 값이 80 이상인 경우
 				var iconSrc = "https://www.google.com/mapfiles/marker.png";
 			  } else if (a.TRASHCAN_LEVEL >= 50) {
@@ -39,6 +39,7 @@
 				// TRASHCAN_LEVEL 값이 50 미만인 경우
 				var iconSrc = "https://www.google.com/mapfiles/marker_green.png";
 			  }
+
 			  var content =  a.TRASHCAN_ID_PK + '은 ' + '<b>' + a.TRASHCAN_LEVEL + '%</b>' + ' 찼습니다.';
 			  if (a.TRASHCAN_LEVEL >= 80) {
 				content += '<span style="color: red;"><b><br>쓰레기통을 비워주세요!!';
