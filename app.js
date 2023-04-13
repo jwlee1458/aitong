@@ -1,9 +1,11 @@
 const express = require('express');
 const app = express();
 const router = express.Router();
-const mysql = require('mysql');
 const excel = require('exceljs');
 const fs = require('fs');
+const moment = require('moment');
+
+const mysql = require('mysql');
 
 const connection = mysql.createConnection({
   host     : 'localhost',
@@ -14,7 +16,7 @@ const connection = mysql.createConnection({
 
 connection.connect(function(err) {
     if(err) throw err;
-    console.log('Connected DB');
+    console.log('DB 연결');
 });
 
 let options = {
@@ -33,7 +35,7 @@ router.get('/map', (req, res) => {
 });
 
 router.get('/allfile', (req, res) => {
-  const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
+  const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
   connection.query(sql, function (err, result, fields) {
     if (err) throw err;
 
@@ -44,17 +46,18 @@ router.get('/allfile', (req, res) => {
       const workbook = new excel.Workbook();
 
       // 워크시트 생성
-      const worksheet = workbook.addWorksheet('Filtered Trash Cans');
+      const worksheet = workbook.addWorksheet('포화 상태 쓰레기통 목록');
 
       // 엑셀 헤더 작성
       worksheet.columns = [
         { header: '쓰레기통 아이디', key: 'TRASHCAN_ID_PK', width: 20},
-        { header: '현재 수용량', key: 'TRASHCAN_LEVEL', width: 20},
+        { header: '현재 수용량', key: 'TRASHCAN_LEVEL', width: 12},
+        { header: '마지막 이메일 전송 날짜', key: 'TRASHCAN_LAST_EMAIL', width: 22},
         { header: '주소', key: 'LOCATION_ADDR', width: 35},
-        { header: '위도', key: 'LOCATION_LAT', width: 13},
-        { header: '경도', key: 'LOCATION_LONG', width: 13},
-        { header: '관리자 아이디', key: 'ADMIN_ID_PK', width: 20},
-        { header: '관리자 행정구역', key: 'ADMIN_RGN', width: 22}
+        { header: '위도', key: 'LOCATION_LAT', width: 10},
+        { header: '경도', key: 'LOCATION_LONG', width: 10},
+        { header: '관리자 아이디', key: 'ADMIN_ID_PK', width: 15},
+        { header: '관리자 행정구역', key: 'ADMIN_RGN', width: 15}
       ];
 
       // 헤더 색상 변경
@@ -65,31 +68,37 @@ router.get('/allfile', (req, res) => {
         bgColor: { argb: 'D9D9D9' }
       };
 
+      // 셀 정렬을 변경하여 전부 왼쪽 정렬
+      worksheet.columns.forEach(column => {
+        column.alignment = { horizontal: 'left' };
+      });
+
       // 엑셀 데이터 작성
       worksheet.addRows(filteredResult);
 
       // 엑셀 파일 저장
-      workbook.xlsx.writeFile('filtered_trash_cans.xlsx')
+      const fileName = `포화_상태_쓰레기통.xlsx`;
+      workbook.xlsx.writeFile(fileName)
       .then(function() {
-        console.log('Filtered trash cans exported successfully!');
-        const file = `${__dirname}/filtered_trash_cans.xlsx`;
+        console.log(`포화 상태 쓰레기통 파일 다운로드 완료`);
+        const file = `${__dirname}/${fileName}`;
         res.download(file, function (err) {
           if (err) {
-            console.log('Error downloading file!', err);
+            console.log(`포화 상태 쓰레기통 파일 다운로드 실패`, err);
           } else {
             fs.unlinkSync(file); // 파일 삭제
           }
         });
       })
       .catch(function(error) {
-        console.log('Error exporting filtered trash cans!', error);
+        console.log('오류 발생', error);
       });
   });
 });
 
 router.get('/file/:region', (req, res) => {
   const region = req.params.region;
-  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK WHERE a.ADMIN_RGN = ?`;
+  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK WHERE a.ADMIN_RGN = ?`;
   connection.query(sql, [region], function (err, result, fields) {
     if (err) throw err;
 
@@ -100,17 +109,18 @@ router.get('/file/:region', (req, res) => {
     const workbook = new excel.Workbook();
 
     // 워크시트 생성
-    const worksheet = workbook.addWorksheet(`${region} 지역 포화 쓰레기통`);
+    const worksheet = workbook.addWorksheet(`${region} 포화 상태 쓰레기통 목록`);
 
     // 엑셀 헤더 작성
     worksheet.columns = [
       { header: '쓰레기통 아이디', key: 'TRASHCAN_ID_PK', width: 20},
-      { header: '현재 수용량', key: 'TRASHCAN_LEVEL', width: 20},
+      { header: '현재 수용량', key: 'TRASHCAN_LEVEL', width: 12},
+      { header: '마지막 이메일 전송 날짜', key: 'TRASHCAN_LAST_EMAIL', width: 22},
       { header: '주소', key: 'LOCATION_ADDR', width: 35},
-      { header: '위도', key: 'LOCATION_LAT', width: 13},
-      { header: '경도', key: 'LOCATION_LONG', width: 13},
-      { header: '관리자 아이디', key: 'ADMIN_ID_PK', width: 20},
-      { header: '관리자 행정구역', key: 'ADMIN_RGN', width: 22}
+      { header: '위도', key: 'LOCATION_LAT', width: 10},
+      { header: '경도', key: 'LOCATION_LONG', width: 10},
+      { header: '관리자 아이디', key: 'ADMIN_ID_PK', width: 15},
+      { header: '관리자 행정구역', key: 'ADMIN_RGN', width: 15}
     ];
 
     // 헤더 색상 변경
@@ -121,27 +131,167 @@ router.get('/file/:region', (req, res) => {
       bgColor: { argb: 'D9D9D9' }
     };
 
+    // 셀 정렬을 변경하여 전부 왼쪽 정렬
+    worksheet.columns.forEach(column => {
+      column.alignment = { horizontal: 'left' };
+    });
+      
     // 엑셀 데이터 작성
     worksheet.addRows(filteredResult);
 
     // 엑셀 파일 저장
-    const fileName = `${region}_포화_쓰레기통.xlsx`;
+    const fileName = `${region}_포화_상태_쓰레기통.xlsx`;
     workbook.xlsx.writeFile(fileName)
     .then(function() {
-      console.log('Filtered trash cans exported successfully!');
+      console.log(`${region} 포화 상태 쓰레기통 파일 다운로드 완료`);
       const file = `${__dirname}/${fileName}`;
       res.download(file, function (err) {
         if (err) {
-          console.log('Error downloading file!', err);
+          console.log(`${region} 포화 상태 쓰레기통 파일 다운로드 실패`, err);
         } else {
           fs.unlinkSync(file); // 파일 삭제
         }
       });
     })
     .catch(function(error) {
-      console.log('Error exporting filtered trash cans!', error);
+      console.log('오류 발생', error);
     });
   });
+});
+
+router.get('/file/old/all', (req, res) => {
+  const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
+  connection.query(sql, function (err, result, fields) {
+    if (err) throw err;
+
+    // 7일 이후인 데이터 필터링
+    const now = new Date();
+    const filteredResult = result.filter(item => {
+    const lastEmail = new Date(item.TRASHCAN_LAST_EMAIL);
+    const diffDays = Math.floor((now - lastEmail) / (1000 * 60 * 60 * 24));
+    return diffDays >= 7;
+    });
+
+    // 엑셀 워크북 생성
+    const workbook = new excel.Workbook();
+
+    // 워크시트 생성
+    const worksheet = workbook.addWorksheet(`1주일이상 관리되지 않은 쓰레기통 목록`);
+
+    // 엑셀 헤더 작성
+    worksheet.columns = [
+      { header: '쓰레기통 아이디', key: 'TRASHCAN_ID_PK', width: 20},
+      { header: '현재 수용량', key: 'TRASHCAN_LEVEL', width: 12},
+      { header: '마지막 이메일 전송 날짜', key: 'TRASHCAN_LAST_EMAIL', width: 22},
+      { header: '주소', key: 'LOCATION_ADDR', width: 35},
+      { header: '위도', key: 'LOCATION_LAT', width: 10},
+      { header: '경도', key: 'LOCATION_LONG', width: 10},
+      { header: '관리자 아이디', key: 'ADMIN_ID_PK', width: 15},
+      { header: '관리자 행정구역', key: 'ADMIN_RGN', width: 15}
+    ];
+
+    // 헤더 색상 변경
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'D9D9D9' },
+      bgColor: { argb: 'D9D9D9' }
+    };
+
+    // 셀 정렬을 변경하여 전부 왼쪽 정렬
+    worksheet.columns.forEach(column => {
+      column.alignment = { horizontal: 'left' };
+    });
+      
+    // 엑셀 데이터 작성
+    worksheet.addRows(filteredResult);
+
+    // 엑셀 파일 저장
+    const fileName = `1주일_이상_관리되지_않은_쓰레기통.xlsx`;
+    workbook.xlsx.writeFile(fileName)
+    .then(function() {
+      console.log(`1주일 이상 관리되지 않은 쓰레기통 파일 다운로드 완료`);
+      const file = `${__dirname}/${fileName}`;
+      res.download(file, function (err) {
+        if (err) {
+        console.log(`1주일 이상 관리되지 않은 쓰레기통 파일 다운로드 실패`, err);
+      } else {
+        fs.unlinkSync(file); // 파일 삭제
+      }
+    });
+  })
+  .catch(function(error) {
+    console.log('오류 발생', error);
+  });
+});
+});
+
+router.get('/file/old/:region', (req, res) => {
+  const region = req.params.region;
+  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK WHERE a.ADMIN_RGN = ?`;
+  connection.query(sql, [region], function (err, result, fields) {
+    if (err) throw err;
+
+    // 7일 이후인 데이터 필터링
+    const now = new Date();
+    const filteredResult = result.filter(item => {
+      const lastEmail = new Date(item.TRASHCAN_LAST_EMAIL);
+      const diffDays = Math.floor((now - lastEmail) / (1000 * 60 * 60 * 24));
+      return diffDays >= 7;
+    });
+
+    // 엑셀 워크북 생성
+    const workbook = new excel.Workbook();
+
+    // 워크시트 생성
+    const worksheet = workbook.addWorksheet(`${region} 1주일 이상 관리되지 않은 쓰레기통 목록`);
+
+    // 엑셀 헤더 작성
+    worksheet.columns = [
+      { header: '쓰레기통 아이디', key: 'TRASHCAN_ID_PK', width: 20},
+      { header: '현재 수용량', key: 'TRASHCAN_LEVEL', width: 12},
+      { header: '마지막 이메일 전송 날짜', key: 'TRASHCAN_LAST_EMAIL', width: 22},
+      { header: '주소', key: 'LOCATION_ADDR', width: 35},
+      { header: '위도', key: 'LOCATION_LAT', width: 10},
+      { header: '경도', key: 'LOCATION_LONG', width: 10},
+      { header: '관리자 아이디', key: 'ADMIN_ID_PK', width: 15},
+      { header: '관리자 행정구역', key: 'ADMIN_RGN', width: 15}
+    ];
+
+    // 헤더 색상 변경
+    worksheet.getRow(1).fill = {
+      type: 'pattern',
+      pattern: 'solid',
+      fgColor: { argb: 'D9D9D9' },
+      bgColor: { argb: 'D9D9D9' }
+    };
+
+    // 셀 정렬을 변경하여 전부 왼쪽 정렬
+    worksheet.columns.forEach(column => {
+      column.alignment = { horizontal: 'left' };
+    });
+      
+    // 엑셀 데이터 작성
+    worksheet.addRows(filteredResult);
+
+    // 엑셀 파일 저장
+    const fileName = `${region}_1주일_이상_관리되지_않은_쓰레기통.xlsx`;
+    workbook.xlsx.writeFile(fileName)
+    .then(function() {
+      console.log(`${region} 1주일 이상 관리되지 않은 쓰레기통 파일 다운로드 완료`);
+      const file = `${__dirname}/${fileName}`;
+      res.download(file, function (err) {
+        if (err) {
+        console.log(`${region} 1주일 이상 관리되지 않은 쓰레기통 파일 다운로드 실패`, err);
+      } else {
+        fs.unlinkSync(file); // 파일 삭제
+      }
+    });
+  })
+  .catch(function(error) {
+    console.log('오류 발생', error);
+  });
+});
 });
 
 app.use('/', router);

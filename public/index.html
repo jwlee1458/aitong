@@ -17,10 +17,14 @@
 </head>
 <body>
 <h1>서울시 쓰레기통 지도</h1>
-<button onclick="location.href='http://localhost:3000/allfile'">포화 상태 쓰레기통 목록</button>
-<button onclick="location.href='http://localhost:3000/file/강남구'">강남구 포화 상태 쓰레기통 목록</button>
-<button onclick="location.href='http://localhost:3000/file/서초구'">서초구 포화 상태 쓰레기통 목록</button>
-<button onclick="location.href='http://localhost:3000/file/송파구'">송파구 포화 상태 쓰레기통 목록</button>
+<button onclick="location.href='http://localhost:3000/allfile'">포화 상태 쓰레기통</button>
+<button onclick="location.href='http://localhost:3000/file/강남구'">강남구 포화 상태 쓰레기통</button>
+<button onclick="location.href='http://localhost:3000/file/서초구'">서초구 포화 상태 쓰레기통</button>
+<button onclick="location.href='http://localhost:3000/file/송파구'">송파구 포화 상태 쓰레기통</button><br>
+<button onclick="location.href='http://localhost:3000/file/old/all'">1주일 이상 관리되지 않은 쓰레기통</button>
+<button onclick="location.href='http://localhost:3000/file/old/강남구'">강남구 1주일 이상 관리되지 않은 쓰레기통</button>
+<button onclick="location.href='http://localhost:3000/file/old/서초구'">서초구 1주일 이상 관리되지 않은 쓰레기통</button>
+<button onclick="location.href='http://localhost:3000/file/old/송파구'">송파구 1주일 이상 관리되지 않은 쓰레기통</button>
 <div id="map"></div>
 <script>
     var positions = [];
