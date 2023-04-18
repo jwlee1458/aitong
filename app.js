@@ -8,10 +8,11 @@ const moment = require('moment');
 const mysql = require('mysql');
 
 const connection = mysql.createConnection({
-  host     : 'localhost',
-  user     : 'root',
-  password : '0903',
-  database : 'trashcan_management'
+  host     : "database-1.cfrpjjaaxr8j.ap-northeast-2.rds.amazonaws.com",
+  user     : "admin",
+  password : "20181441",
+  database : "trashcan_management",
+  port : 3306
 });
 
 connection.connect(function(err) {
@@ -175,9 +176,9 @@ router.get('/file/old/:region', (req, res) => {
     // 7일 이후인 데이터 필터링
     const now = new Date();
     const filteredResult = result.filter(item => {
-      const lastEmail = new Date(item.TRASHCAN_LAST_EMAIL);
-      const diffDays = Math.floor((now - lastEmail) / (1000 * 60 * 60 * 24));
-      return diffDays >= 7;
+    const lastEmail = new Date(item.TRASHCAN_LAST_EMAIL);
+    const diffDays = Math.floor((now - lastEmail) / (1000 * 60 * 60 * 24));
+    return diffDays >= 7;
     });
 
     // 엑셀 워크북 생성
