@@ -56,9 +56,9 @@ function createExcelWorksheet(workbook, filteredResult, condition, region) {
     { header: '쓰레기통 아이디', key: 'TRASHCAN_ID_PK', width: 20},
     { header: '현재 수용량', key: 'TRASHCAN_LEVEL', width: 12},
     { header: '마지막 이메일 전송 날짜', key: 'TRASHCAN_LAST_EMAIL', width: 22},
-    { header: '주소', key: 'LOCATION_ADDR', width: 35},
-    { header: '위도', key: 'LOCATION_LAT', width: 10},
-    { header: '경도', key: 'LOCATION_LONG', width: 10},
+    { header: '주소', key: 'LOCATION_ADDR', width: 30},
+    { header: '위도', key: 'LOCATION_LAT', width: 20},
+    { header: '경도', key: 'LOCATION_LONG', width: 20},
     { header: '관리자 아이디', key: 'ADMIN_ID_PK', width: 15},
     { header: '관리자 행정구역', key: 'ADMIN_RGN', width: 15}
   ];
