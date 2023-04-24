@@ -22,13 +22,14 @@ connection.connect(function(err) {
 
 let options = {
     extensions: ['htm', 'html'],
-    index: ["index.html", "default.htm"],
+    index: ["index_back_up.html"],
 }
 
-app.use(express.static('public'));
+app.use(express.static('public', options));
+
 
 router.get('/map', (req, res) => {
-  const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK WHERE TRASHCAN_ID_PK IN ('heungeop_trash_05', 'heungeop_trash_15')"
+  const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK"
   connection.query(sql, function (err, result, fields) {
       if (err) throw err;
       res.send(result)
@@ -137,12 +138,8 @@ router.get('/file/:region', (req, res) => {
     return res.status(400).send('Region parameter is missing.');
   }
 
-    const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN 
-             FROM location_tb l 
-             INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK 
-             INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK 
-             WHERE a.ADMIN_RGN = ? AND t.TRASHCAN_ID_PK IN ('heungeop_trash_05', 'heungeop_trash_15')`;
-    connection.query(sql, [region], function (err, result, fields) {
+  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK WHERE a.ADMIN_RGN = ?`;
+  connection.query(sql, [region], function (err, result, fields) {
     if (err) throw err;
 
     // 80% 이상인 데이터 필터링
@@ -173,11 +170,7 @@ router.get('/file/old/all', (req, res) => {
 
 router.get('/file/old/:region', (req, res) => {
   const region = req.params.region;
-  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN 
-              FROM location_tb l 
-              INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK 
-              INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK 
-              WHERE a.ADMIN_RGN = ? AND t.TRASHCAN_ID_PK IN ('heungeop_trash_05', 'heungeop_trash_15')`;
+  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK WHERE a.ADMIN_RGN = ?`;
   connection.query(sql, [region], function (err, result, fields) {
     if (err) throw err;
 
@@ -196,4 +189,4 @@ router.get('/file/old/:region', (req, res) => {
 
 app.use('/', router);
 
-app.listen(80);
+app.listen(3000);
