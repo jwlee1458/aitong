@@ -4,8 +4,13 @@ const router = express.Router();
 const excel = require('exceljs');
 const fs = require('fs');
 const moment = require('moment');
-
+const http = require('http');
+const https = require('https');
+const path = require('path');
 const mysql = require('mysql');
+
+const HTTP_PORT = 3000;
+const HTTPS_PORT = 443;
 
 const connection = mysql.createConnection({
   host     : "database-1.cfrpjjaaxr8j.ap-northeast-2.rds.amazonaws.com",
@@ -23,10 +28,11 @@ connection.connect(function(err) {
 let options = {
     extensions: ['htm', 'html'],
     index: ["index_back_up.html"],
+    key: fs.readFileSync('./인증서/private.key'),
+    cert: fs.readFileSync('./인증서/certificate.crt'),
 }
 
 app.use(express.static('public', options));
-
 
 router.get('/map', (req, res) => {
   const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK"
@@ -187,6 +193,16 @@ router.get('/file/old/:region', (req, res) => {
   });
 });
 
+// HTTP
+http.createServer(app).listen(HTTP_PORT, () => {
+  console.log(`HTTP 서버가 ${HTTP_PORT} 포트에서 실행 중입니다.`);
+});
+
+// HTTPS
+https.createServer(options, app).listen(HTTPS_PORT, () => {
+  console.log(`HTTPS 서버가 ${HTTPS_PORT} 포트에서 실행 중입니다.`);
+});
+
 app.use('/', router);
 
-app.listen(3000);
+//app.listen(3000);
