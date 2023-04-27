@@ -68,6 +68,27 @@ app.post('/distance', (req, res) => {
   });
 });
 
+app.get('/time', (req, res) => {
+  const fs = require('fs');
+  const jsonData = JSON.parse(fs.readFileSync('time.json', 'utf8'));
+  res.send(jsonData);
+});
+
+// 10초마다 현재 시간을 time.json 파일에 저장
+setInterval(() => {
+  const now = new Date();
+  const timeZoneOffset = now.getTimezoneOffset() / 60; // 분 단위로 나오므로 시간 단위로 변경
+  const localHours = now.getHours() + timeZoneOffset + 9; // UTC+9 (한국 표준시) 적용
+  const timeData = {
+    hours: localHours,
+  };
+
+  fs.writeFile('time.json', JSON.stringify(timeData), (err) => {
+    if (err) throw err;
+    console.log('현재 시간을 time.json에 저장 완료');
+  });
+}, 10000);
+
 function createExcelWorksheet(workbook, filteredResult, condition, region) {
   // 엑셀 워크시트 생성
   let worksheetName;
