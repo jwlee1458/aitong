@@ -33,6 +33,7 @@ let options = {
 }
 
 app.use(express.static('public', options));
+app.use(express.json()); // JSON 데이터 파싱
 
 router.get('/map', (req, res) => {
   const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK"
@@ -42,8 +43,33 @@ router.get('/map', (req, res) => {
   });
 });
 
+app.post('/distance', (req, res) => {
+  const distance = req.body.distance; // 거리 데이터 추출
+  const trashcan_id = req.body.trashcan_id_pk; // 쓰레기통 ID 추출
+  console.log(`Distance: ${distance}m, Trashcan ID: ${trashcan_id}`); // 추출한 데이터 출력
+
+  // TRASHCAN_LEVEL 값 업데이트
+  const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${distance} WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+  connection.query(sql, function (err, result, fields) {
+      if (err) throw err;
+      console.log(`Trashcan ${trashcan_id} level updated to ${distance}`);
+
+      if (distance >= 80) { // TRASHCAN_LEVEL이 80 이상인 경우 메일 보내기
+        const { exec } = require('child_process');
+        exec('node public/mail.js', (err, stdout, stderr) => {
+          if (err) {
+            console.error(err);
+            return;
+          }
+          console.log(stdout);
+        });
+      }
+      res.send('TRASHCAN_LEVEL 업데이트 완료!');
+  });
+});
+
 function createExcelWorksheet(workbook, filteredResult, condition, region) {
-  //엑셀 워크시트 생성
+  // 엑셀 워크시트 생성
   let worksheetName;
   
   if (condition === 'A') {
