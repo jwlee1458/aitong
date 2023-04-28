@@ -92,7 +92,7 @@ app.get('/time', (req, res) => {
   res.send(jsonData);
 });
 
-// 10초마다 현재 시간을 time.json 파일에 저장
+// 1시간마다 현재 시간을 time.json 파일에 저장
 setInterval(() => {
   const now = new Date();
   const timeZoneOffset = now.getTimezoneOffset() / 60; // 분 단위로 나오므로 시간 단위로 변경
@@ -105,7 +105,7 @@ setInterval(() => {
     if (err) throw err;
     console.log('현재 시간을 time.json에 저장 완료');
   });
-}, 10000);
+}, 3600000); // 1시간
 
 function createExcelWorksheet(workbook, filteredResult, condition, region) {
   // 엑셀 워크시트 생성
