@@ -8,6 +8,7 @@ const http = require('http');
 const https = require('https');
 const path = require('path');
 const mysql = require('mysql');
+const cron = require('node-cron');
 
 const HTTP_PORT = 3000;
 const HTTPS_PORT = 443;
@@ -48,25 +49,40 @@ app.post('/distance', (req, res) => {
   const trashcan_id = req.body.trashcan_id; // 쓰레기통 ID 추출
   console.log(`거리: ${distance}m, 쓰레기통 ID: ${trashcan_id}`); // 추출한 데이터 출력
 
+  // 현재 시간
+  const now = new Date();
+  const timeZoneOffset = now.getTimezoneOffset() / 60; // 분 단위로 나오므로 시간 단위로 변경
+  const localHours = (now.getHours() + timeZoneOffset + 9) % 24; // UTC+9 (한국 표준시) 적용, 24시일 경우 0시로 변환
+  const timeData = {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1, // getMonth()는 0부터 시작하므로 1을 더함
+    date: now.getDate(),
+    hours: localHours,
+    minutes: now.getMinutes(),
+    seconds: now.getSeconds()
+  };  
+  const formattedDate = `${timeData.year}-${('0' + timeData.month).slice(-2)}-${('0' + timeData.date).slice(-2)}`;
+  const formattedTime = `${('0' + timeData.hours).slice(-2)}:${('0' + timeData.minutes).slice(-2)}:${('0' + timeData.seconds).slice(-2)}`;
+  const dateTimeString = `${formattedDate} ${formattedTime}`;
+
   // TRASHCAN_LEVEL 값 업데이트
   const trashcanLength = 135; // 쓰레기통의 전체 길이
   const trashcan_level = Math.floor((distance/trashcanLength) * 100); // distance를 %로 변환하여 TRASHCAN_LEVEL 계산
-  const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${trashcan_level} WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+  const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${trashcan_level}, TRASHCAN_LAST_EMAIL = '${dateTimeString}' WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
   connection.query(sql, function (err, result, fields) {
-      if (err) throw err;
-      console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_LEVEL : ${trashcan_level}`);
-
-      if (distance >= 80) { // TRASHCAN_LEVEL이 80 이상인 경우 메일 보내기
-        const { exec } = require('child_process');
-        exec('node public/mail.js', (err, stdout, stderr) => {
-          if (err) {
-            console.error(err);
-            return;
-          }
-          console.log(stdout);
-        });
-      }
-      res.send('TRASHCAN_LEVEL 업데이트 완료!');
+    if (err) throw err;
+    console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_LEVEL : ${trashcan_level}, TRASHCAN_LAST_EMAIL : ${dateTimeString}`);
+    if (trashcan_level >= 80) { // TRASHCAN_LEVEL이 80 이상인 경우 메일 보내기
+      const { exec } = require('child_process');
+      exec('node public/mail.js', (err, stdout, stderr) => {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        console.log(stdout);
+      });
+    }
+    res.send('TRASHCAN_LEVEL과 TRASHCAN_LAST_EMAIL 업데이트 완료!');
   });
 });
 
