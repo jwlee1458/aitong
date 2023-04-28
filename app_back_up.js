@@ -45,14 +45,16 @@ router.get('/map', (req, res) => {
 
 app.post('/distance', (req, res) => {
   const distance = req.body.distance; // 거리 데이터 추출
-  const trashcan_id = req.body.trashcan_id_pk; // 쓰레기통 ID 추출
-  console.log(`Distance: ${distance}m, Trashcan ID: ${trashcan_id}`); // 추출한 데이터 출력
+  const trashcan_id = req.body.trashcan_id; // 쓰레기통 ID 추출
+  console.log(`거리: ${distance}m, 쓰레기통 ID: ${trashcan_id}`); // 추출한 데이터 출력
 
   // TRASHCAN_LEVEL 값 업데이트
-  const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${distance} WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+  const trashcanLength = 135; // 쓰레기통의 전체 길이
+  const trashcan_level = Math.floor((distance/trashcanLength) * 100); // distance를 %로 변환하여 TRASHCAN_LEVEL 계산
+  const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${trashcan_level} WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
   connection.query(sql, function (err, result, fields) {
       if (err) throw err;
-      console.log(`Trashcan ${trashcan_id} level updated to ${distance}`);
+      console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_LEVEL : ${trashcan_level}`);
 
       if (distance >= 80) { // TRASHCAN_LEVEL이 80 이상인 경우 메일 보내기
         const { exec } = require('child_process');
