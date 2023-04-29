@@ -1,18 +1,27 @@
+require('dotenv').config();
+
 const express = require('express');
 const app = express();
 const router = express.Router();
 const excel = require('exceljs');
 const fs = require('fs');
 const moment = require('moment');
-
+//const http = require('http');
+//const https = require('https');
+const path = require('path');
 const mysql = require('mysql');
+const cron = require('node-cron');
+const ejs = require('ejs');
+
+//const HTTP_PORT = 80;
+//const HTTPS_PORT = 443;
 
 const connection = mysql.createConnection({
-  host     : "database-1.cfrpjjaaxr8j.ap-northeast-2.rds.amazonaws.com",
-  user     : "admin",
-  password : "20181441",
-  database : "trashcan_management",
-  port : 3306
+  host     : process.env.DB_HOST,
+  user     : process.env.DB_USER,
+  password : process.env.DB_PASSWORD,
+  database : process.env.DB_DATABASE,
+  port : process.env.DB_PORT
 });
 
 connection.connect(function(err) {
@@ -21,11 +30,20 @@ connection.connect(function(err) {
 });
 
 let options = {
-    extensions: ['htm', 'html'],
-    index: ["index.html", "default.htm"],
+  extensions: ['ejs'],
+  //key: fs.readFileSync(process.env.KEY_PATH),
+  //cert: fs.readFileSync(process.env.CERT_PATH),
 }
 
-app.use(express.static('public'));
+app.use(express.json()); // JSON 데이터 파싱
+app.use(express.static(path.join(__dirname, 'public')));
+app.set('view engine', 'ejs');
+app.set('views', './views');
+app.use('/static', express.static('static'));
+
+app.get('/', function(req, res) {
+  res.render('index', { apiKey: process.env.KAKAO_MAPS_APPKEY });
+});
 
 router.get('/map', (req, res) => {
   const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK WHERE TRASHCAN_ID_PK IN ('heungeop_trash_05', 'heungeop_trash_15')"
@@ -34,6 +52,69 @@ router.get('/map', (req, res) => {
       res.send(result)
   });
 });
+
+app.post('/distance', (req, res) => {
+  const distance = req.body.distance; // 거리 데이터 추출
+  const trashcan_id = req.body.trashcan_id; // 쓰레기통 ID 추출
+  console.log(`거리: ${distance}m, 쓰레기통 ID: ${trashcan_id}`); // 추출한 데이터 출력
+
+  // 현재 시간
+  const now = new Date();
+  const timeZoneOffset = now.getTimezoneOffset() / 60; // 분 단위로 나오므로 시간 단위로 변경
+  const localHours = (now.getHours() + timeZoneOffset + 9) % 24; // UTC+9 (한국 표준시) 적용, 24시일 경우 0시로 변환
+  const timeData = {
+    year: now.getFullYear(),
+    month: now.getMonth() + 1, // getMonth()는 0부터 시작하므로 1을 더함
+    date: now.getDate(),
+    hours: localHours,
+    minutes: now.getMinutes(),
+    seconds: now.getSeconds()
+  };  
+  const formattedDate = `${timeData.year}-${('0' + timeData.month).slice(-2)}-${('0' + timeData.date).slice(-2)}`;
+  const formattedTime = `${('0' + timeData.hours).slice(-2)}:${('0' + timeData.minutes).slice(-2)}:${('0' + timeData.seconds).slice(-2)}`;
+  const dateTimeString = `${formattedDate} ${formattedTime}`;
+
+  // TRASHCAN_LEVEL 값 업데이트
+  const trashcanLength = 135; // 쓰레기통의 전체 길이
+  const trashcan_level = Math.floor((distance/trashcanLength) * 100); // distance를 %로 변환하여 TRASHCAN_LEVEL 계산
+  const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${trashcan_level}, TRASHCAN_LAST_EMAIL = '${dateTimeString}' WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+  connection.query(sql, function (err, result, fields) {
+    if (err) throw err;
+    console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_LEVEL : ${trashcan_level}%, TRASHCAN_LAST_EMAIL : ${dateTimeString}`);
+    if (trashcan_level >= 80) { // TRASHCAN_LEVEL이 80 이상인 경우 메일 보내기
+      const { exec } = require('child_process');
+      exec('node public/mail.js', (err, stdout, stderr) => {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        console.log(stdout);
+      });
+    }
+    res.send('TRASHCAN_LEVEL과 TRASHCAN_LAST_EMAIL 업데이트 완료!');
+  });
+});
+
+app.get('/time', (req, res) => {
+  const fs = require('fs');
+  const jsonData = JSON.parse(fs.readFileSync('time.json', 'utf8'));
+  res.send(jsonData);
+});
+
+// 1시간마다 현재 시간을 time.json 파일에 저장
+setInterval(() => {
+  const now = new Date();
+  const timeZoneOffset = now.getTimezoneOffset() / 60; // 분 단위로 나오므로 시간 단위로 변경
+  const localHours = now.getHours() + timeZoneOffset + 9; // UTC+9 (한국 표준시) 적용
+  const timeData = {
+    hours: localHours,
+  };
+
+  fs.writeFile('time.json', JSON.stringify(timeData), (err) => {
+    if (err) throw err;
+    console.log('현재 시간을 time.json에 저장 완료');
+  });
+}, 3600000); // 1시간
 
 function createExcelWorksheet(workbook, filteredResult, condition, region) {
   //엑셀 워크시트 생성
@@ -193,6 +274,18 @@ router.get('/file/old/:region', (req, res) => {
     const workbook = createExcelWorkbook(res, filteredResult, 'D', region);
   });
 });
+
+/*
+// HTTP
+http.createServer(app).listen(HTTP_PORT, () => {
+  console.log(`HTTP 서버가 ${HTTP_PORT} 포트에서 실행 중입니다.`);
+});
+
+// HTTPS
+https.createServer(options, app).listen(HTTPS_PORT, () => {
+  console.log(`HTTPS 서버가 ${HTTPS_PORT} 포트에서 실행 중입니다.`);
+});
+*/
 
 app.use('/', router);
 

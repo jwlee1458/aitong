@@ -1,3 +1,5 @@
+require('dotenv').config();
+
 const express = require('express');
 const app = express();
 const router = express.Router();
@@ -9,16 +11,17 @@ const https = require('https');
 const path = require('path');
 const mysql = require('mysql');
 const cron = require('node-cron');
+const ejs = require('ejs');
 
 const HTTP_PORT = 3000;
 const HTTPS_PORT = 443;
 
 const connection = mysql.createConnection({
-  host     : "database-1.cfrpjjaaxr8j.ap-northeast-2.rds.amazonaws.com",
-  user     : "admin",
-  password : "20181441",
-  database : "trashcan_management",
-  port : 3306
+  host     : process.env.DB_HOST,
+  user     : process.env.DB_USER,
+  password : process.env.DB_PASSWORD,
+  database : process.env.DB_DATABASE,
+  port : process.env.DB_PORT
 });
 
 connection.connect(function(err) {
@@ -27,14 +30,20 @@ connection.connect(function(err) {
 });
 
 let options = {
-    extensions: ['htm', 'html'],
-    index: ["index_back_up.html"],
-    key: fs.readFileSync('./인증서/private.key'),
-    cert: fs.readFileSync('./인증서/certificate.crt'),
+  extensions: ['ejs'],
+  key: fs.readFileSync(process.env.KEY_PATH),
+  cert: fs.readFileSync(process.env.CERT_PATH),
 }
 
-app.use(express.static('public', options));
 app.use(express.json()); // JSON 데이터 파싱
+app.use(express.static(path.join(__dirname, 'public')));
+app.set('view engine', 'ejs');
+app.set('views', './views');
+app.use('/static', express.static('static'));
+
+app.get('/', function(req, res) {
+  res.render('index_back_up', { apiKey: process.env.KAKAO_MAPS_APPKEY });
+});
 
 router.get('/map', (req, res) => {
   const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK"

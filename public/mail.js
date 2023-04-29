@@ -3,10 +3,11 @@ const nodemailer = require( "nodemailer" );
 // DB 연결
 const mysql = require('mysql');
 const connection = mysql.createConnection({
-  host: "database-1.cfrpjjaaxr8j.ap-northeast-2.rds.amazonaws.com",
-  user: "admin",
-  password: "20181441",
-  database: "trashcan_management"
+  host     : process.env.DB_HOST,
+  user     : process.env.DB_USER,
+  password : process.env.DB_PASSWORD,
+  database : process.env.DB_DATABASE,
+  port : process.env.DB_PORT
 });
 
 // 연결 확인
@@ -32,15 +33,15 @@ connection.connect(function(err) {
         port: 587,
         secure: false,
         auth: {
-          user: 'eunhokim98@naver.com',
-          pass: ''
+          user: process.env.MAIL_USER,
+          pass: process.env.MAIL_PASSWORD
         }
       });
 
       for (let i = 0; i < results.length; i++) {
         const row = results[i];
         const info = await transporter.sendMail({
-          from: 'eunhokim98@naver.com',
+          from: process.env.MAIL_USER,
           to : row["ADMIN_EMAIL"],
           subject: '쓰레기통 포화 상태 알림',
           html : 
