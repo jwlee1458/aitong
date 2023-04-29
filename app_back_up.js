@@ -53,6 +53,11 @@ router.get('/map', (req, res) => {
   });
 });
 
+// 파일 다운로드
+app.get('/file_down_back_up', (req, res) => {
+  res.render('file_down_back_up', { apiKey: process.env.KAKAO_MAPS_APPKEY });
+});
+
 app.post('/distance', (req, res) => {
   const distance = req.body.distance; // 거리 데이터 추출
   const trashcan_id = req.body.trashcan_id; // 쓰레기통 ID 추출
@@ -144,12 +149,16 @@ function createExcelWorksheet(workbook, filteredResult, condition, region) {
   let worksheetName;
   
   if (condition === 'A') {
-    worksheetName = `포화 상태 쓰레기통 목록`;
+    worksheetName = `원주시 쓰레기통 목록`;
   } else if (condition === 'B') {
-    worksheetName = `${region} 포화 상태 쓰레기통 목록`;
+    worksheetName = `${region} 쓰레기통 목록`;
   } else if (condition === 'C') {
+    worksheetName = `포화 상태 쓰레기통 목록`;
+  } else if (condition === 'D') {
+    worksheetName = `${region} 포화 상태 쓰레기통 목록`;
+  } else if (condition === 'E') {
     worksheetName = `1주일 이상 관리되지 않은 쓰레기통 목록`;
-  } else {
+  } else if (condition === 'F') {
     worksheetName = `${region} 1주일 이상 관리되지 않은 쓰레기통 목록`;
   }
   
@@ -195,12 +204,16 @@ function createExcelWorkbook(res, filteredResult, condition, region) {
   // 엑셀 파일명 생성
   let fileName;
   if (condition === 'A') {
-    fileName = "포화_상태_쓰레기통.xlsx";
+    fileName = "원주시_쓰레기통.xlsx";
   } else if (condition === 'B') {
-    fileName = `${region}_포화_상태_쓰레기통.xlsx`;
+    fileName = `${region}_쓰레기통.xlsx`;
   } else if (condition === 'C') {
-    fileName = '1주일_이상_관리되지_않은_쓰레기통.xlsx';
+    fileName = "포화_상태_쓰레기통.xlsx";
   } else if (condition === 'D') {
+    fileName = `${region}_포화_상태_쓰레기통.xlsx`;
+  } else if (condition === 'E') {
+    fileName = '1주일_이상_관리되지_않은_쓰레기통.xlsx';
+  } else if (condition === 'F') {
     fileName = `${region}_1주일_이상_관리되지_않은_쓰레기통.xlsx`;
   }
 
@@ -222,7 +235,32 @@ function createExcelWorkbook(res, filteredResult, condition, region) {
     });
 }
 
-router.get('/allfile', (req, res) => {
+router.get('/file/list/all', (req, res) => {
+  const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
+  connection.query(sql, function (err, result, fields) {
+    if (err) throw err;
+
+    // 엑셀 워크북 생성 및 파일 저장
+    createExcelWorkbook(res, result, 'A');
+  });
+});
+
+router.get('/file/list/:region', (req, res) => {
+  let region = req.params.region;
+  if (!region) {
+    return res.status(400).send('Region parameter is missing.');
+  }
+
+  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK WHERE a.ADMIN_RGN = ?`;
+  connection.query(sql, [region], function (err, result, fields) {
+    if (err) throw err;
+
+    // 엑셀 워크북 생성
+    const workbook = createExcelWorkbook(res, result, 'B', region);
+  });
+});
+
+router.get('/file/full/all', (req, res) => {
   const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
   connection.query(sql, function (err, result, fields) {
     if (err) throw err;
@@ -231,11 +269,11 @@ router.get('/allfile', (req, res) => {
     const filteredResult = result.filter(item => item.TRASHCAN_LEVEL >= 80);
 
     // 엑셀 워크북 생성 및 파일 저장
-    createExcelWorkbook(res, filteredResult, 'A');
+    createExcelWorkbook(res, filteredResult, 'C');
   });
 });
 
-router.get('/file/:region', (req, res) => {
+router.get('/file/full/:region', (req, res) => {
   let region = req.params.region;
   if (!region) {
     return res.status(400).send('Region parameter is missing.');
@@ -249,7 +287,7 @@ router.get('/file/:region', (req, res) => {
     const filteredResult = result.filter(item => item.TRASHCAN_LEVEL >= 80);
 
     // 엑셀 워크북 생성
-    const workbook = createExcelWorkbook(res, filteredResult, 'B', region);
+    const workbook = createExcelWorkbook(res, filteredResult, 'D', region);
   });
 });
 
@@ -267,7 +305,7 @@ router.get('/file/old/all', (req, res) => {
     });
 
     // 엑셀 워크북 생성 및 파일 저장
-    createExcelWorkbook(res, filteredResult, 'C');
+    createExcelWorkbook(res, filteredResult, 'E');
   });
 });
 
@@ -286,7 +324,7 @@ router.get('/file/old/:region', (req, res) => {
     });
 
     // 엑셀 워크북 생성
-    const workbook = createExcelWorkbook(res, filteredResult, 'D', region);
+    const workbook = createExcelWorkbook(res, filteredResult, 'F', region);
   });
 });
 
