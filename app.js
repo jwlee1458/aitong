@@ -95,26 +95,49 @@ app.post('/distance', (req, res) => {
   });
 });
 
-app.get('/time', (req, res) => {
-  const fs = require('fs');
-  const jsonData = JSON.parse(fs.readFileSync('time.json', 'utf8'));
-  res.send(jsonData);
-});
+const url1 = 'http://쓰레기통1 IP/led';
+const url2 = 'http://쓰레기통2 IP/led';
 
-// 1시간마다 현재 시간을 time.json 파일에 저장
-setInterval(() => {
-  const now = new Date();
-  const timeZoneOffset = now.getTimezoneOffset() / 60; // 분 단위로 나오므로 시간 단위로 변경
-  const localHours = now.getHours() + timeZoneOffset + 9; // UTC+9 (한국 표준시) 적용
-  const timeData = {
-    hours: localHours,
+// 쓰레기통1 LED 제어
+const controlLED1 = (status) => {
+  const options = {
+    method: 'POST',
+    body: { isNight: status },
+    json: true,
   };
 
-  fs.writeFile('time.json', JSON.stringify(timeData), (err) => {
-    if (err) throw err;
-    console.log('현재 시간을 time.json에 저장 완료');
+  request(url1, options, (error, response, body) => {
+    if (error) throw error;
+    console.log(`쓰레기통1 LED 상태: ${body.status}`);
   });
-}, 3600000); // 1시간
+};
+
+// 쓰레기통2 LED 제어
+const controlLED2 = (status) => {
+  const options = {
+    method: 'POST',
+    body: { isNight: status },
+    json: true,
+  };
+
+  request(url2, options, (error, response, body) => {
+    if (error) throw error;
+    console.log(`쓰레기통2 LED 상태: ${body.status}`);
+  });
+};
+
+// 한국 표준시(UTC+9) 기준으로 AM 6:00 LED 끔 / PM 6:00 LED 켬
+cron.schedule('0 9 * * *', () => {
+  console.log('오전 6시 LED 꺼짐');
+  controlLED1('off');
+  controlLED2('off');
+});
+
+cron.schedule('0 21 * * *', () => {
+  console.log('오후 6시 LED 켜짐');
+  controlLED1('on');
+  controlLED2('on');
+});
 
 function createExcelWorksheet(workbook, filteredResult, condition, region) {
   //엑셀 워크시트 생성
