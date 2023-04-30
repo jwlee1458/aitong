@@ -7,14 +7,14 @@ const excel = require('exceljs');
 const fs = require('fs');
 const moment = require('moment');
 //const http = require('http');
-//const https = require('https');
+const https = require('https');
 const path = require('path');
 const mysql = require('mysql');
 const cron = require('node-cron');
 const ejs = require('ejs');
 
 //const HTTP_PORT = 80;
-//const HTTPS_PORT = 443;
+const HTTPS_PORT = 443;
 
 const connection = mysql.createConnection({
   host     : process.env.DB_HOST,
@@ -31,8 +31,8 @@ connection.connect(function(err) {
 
 let options = {
   extensions: ['ejs'],
-  //key: fs.readFileSync(process.env.KEY_PATH),
-  //cert: fs.readFileSync(process.env.CERT_PATH),
+  key: fs.readFileSync(process.env.KEY_PATH),
+  cert: fs.readFileSync(process.env.CERT_PATH),
 }
 
 app.use(express.json()); // JSON 데이터 파싱
@@ -46,7 +46,7 @@ app.get('/', function(req, res) {
 });
 
 router.get('/map', (req, res) => {
-  const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK WHERE TRASHCAN_ID_PK IN ('heungeop_trash_05', 'heungeop_trash_15')"
+  const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK"
   connection.query(sql, function (err, result, fields) {
       if (err) throw err;
       res.send(result)
@@ -58,6 +58,7 @@ app.get('/file_down', (req, res) => {
   res.render('file_down', { apiKey: process.env.KAKAO_MAPS_APPKEY });
 });
 
+// 적재량 업데이트
 app.post('/data', (req, res) => {
   const distance = req.body.distance; // 거리 데이터 추출
   const trashcan_id = req.body.trashcan_id; // 쓰레기통 ID 추출
@@ -186,17 +187,17 @@ function createExcelWorkbook(res, filteredResult, condition, region) {
   // 엑셀 파일명 생성
   let fileName;
   if (condition === 'A') {
-    fileName = "원주시_쓰레기통.xlsx";
+    fileName = "원주시 쓰레기통.xlsx";
   } else if (condition === 'B') {
-    fileName = `${region}_쓰레기통.xlsx`;
+    fileName = `${region} 쓰레기통.xlsx`;
   } else if (condition === 'C') {
-    fileName = "포화_상태_쓰레기통.xlsx";
+    fileName = "포화 상태 쓰레기통.xlsx";
   } else if (condition === 'D') {
-    fileName = `${region}_포화_상태_쓰레기통.xlsx`;
+    fileName = `${region} 포화 상태 쓰레기통.xlsx`;
   } else if (condition === 'E') {
-    fileName = '1주일_이상_관리되지_않은_쓰레기통.xlsx';
+    fileName = '1주일 이상 관리되지 않은 쓰레기통.xlsx';
   } else if (condition === 'F') {
-    fileName = `${region}_1주일_이상_관리되지_않은_쓰레기통.xlsx`;
+    fileName = `${region} 1주일 이상 관리되지 않은 쓰레기통.xlsx`;
   }
 
   // 엑셀 파일 저장
@@ -217,6 +218,7 @@ function createExcelWorkbook(res, filteredResult, condition, region) {
     });
 }
 
+// 원주시 전체
 router.get('/file/list/all', (req, res) => {
   const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
   connection.query(sql, function (err, result, fields) {
@@ -227,6 +229,7 @@ router.get('/file/list/all', (req, res) => {
   });
 });
 
+// 원주시 동별 전체
 router.get('/file/list/:region', (req, res) => {
   let region = req.params.region;
   if (!region) {
@@ -242,6 +245,7 @@ router.get('/file/list/:region', (req, res) => {
   });
 });
 
+// 원주시 포화 상태
 router.get('/file/full/all', (req, res) => {
   const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
   connection.query(sql, function (err, result, fields) {
@@ -255,6 +259,7 @@ router.get('/file/full/all', (req, res) => {
   });
 });
 
+// 원주시 동별 포화 상태
 router.get('/file/full/:region', (req, res) => {
   let region = req.params.region;
   if (!region) {
@@ -273,6 +278,7 @@ router.get('/file/full/:region', (req, res) => {
   });
 });
 
+// 원주시 1주일 이상
 router.get('/file/old/all', (req, res) => {
   const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
   connection.query(sql, function (err, result, fields) {
@@ -291,6 +297,7 @@ router.get('/file/old/all', (req, res) => {
   });
 });
 
+// 원주시 동별 1주일 이상
 router.get('/file/old/:region', (req, res) => {
   const region = req.params.region;
   const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK WHERE a.ADMIN_RGN = ?`;
@@ -315,13 +322,13 @@ router.get('/file/old/:region', (req, res) => {
 http.createServer(app).listen(HTTP_PORT, () => {
   console.log(`HTTP 서버가 ${HTTP_PORT} 포트에서 실행 중입니다.`);
 });
+*/
 
 // HTTPS
 https.createServer(options, app).listen(HTTPS_PORT, () => {
   console.log(`HTTPS 서버가 ${HTTPS_PORT} 포트에서 실행 중입니다.`);
 });
-*/
 
 app.use('/', router);
 
-app.listen(80);
+//app.listen(80);
