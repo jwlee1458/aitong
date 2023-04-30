@@ -64,18 +64,17 @@ app.post('/data', (req, res) => {
   const trashcan_id = req.body.trashcan_id; // 쓰레기통 ID 추출
   console.log(`거리: ${distance}m, 쓰레기통 ID: ${trashcan_id}`); // 추출한 데이터 출력
 
-  // 현재 시간
+  // 현재 시간 (UTC+9 (한국 표준시) 적용)
   const now = new Date();
-  const timeZoneOffset = now.getTimezoneOffset() / 60; // 분 단위로 나오므로 시간 단위로 변경
-  const localHours = (now.getHours() + timeZoneOffset + 9) % 24; // UTC+9 (한국 표준시) 적용, 24시일 경우 0시로 변환
+  const koreanNow = new Date(now.getTime() + (540 * 60 * 1000));
   const timeData = {
-    year: now.getFullYear(),
-    month: now.getMonth() + 1, // getMonth()는 0부터 시작하므로 1을 더함
-    date: now.getDate(),
-    hours: localHours,
-    minutes: now.getMinutes(),
-    seconds: now.getSeconds()
-  };  
+    year: koreanNow.getFullYear(),
+    month: koreanNow.getMonth() + 1,
+    date: koreanNow.getDate(),
+    hours: koreanNow.getHours(),
+    minutes: koreanNow.getMinutes(),
+    seconds: koreanNow.getSeconds()
+  };
   const formattedDate = `${timeData.year}-${('0' + timeData.month).slice(-2)}-${('0' + timeData.date).slice(-2)}`;
   const formattedTime = `${('0' + timeData.hours).slice(-2)}:${('0' + timeData.minutes).slice(-2)}:${('0' + timeData.seconds).slice(-2)}`;
   const dateTimeString = `${formattedDate} ${formattedTime}`;
@@ -89,7 +88,7 @@ app.post('/data', (req, res) => {
     console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_LEVEL : ${trashcan_level}%, 현재 시간 : ${dateTimeString}`);
     if (trashcan_level >= 80) { // TRASHCAN_LEVEL이 80 이상인 경우 메일 보내기
       const { exec } = require('child_process');
-      exec('node public/mail.js', (err, stdout, stderr) => {
+      exec(`node mail_full.js ${trashcan_id}`, (err, stdout, stderr) => {
         if (err) {
           console.error(err);
           return;
