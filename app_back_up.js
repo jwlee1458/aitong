@@ -58,7 +58,7 @@ app.get('/file_down_back_up', (req, res) => {
   res.render('file_down_back_up', { apiKey: process.env.KAKAO_MAPS_APPKEY });
 });
 
-app.post('/distance', (req, res) => {
+app.post('/data', (req, res) => {
   const distance = req.body.distance; // 거리 데이터 추출
   const trashcan_id = req.body.trashcan_id; // 쓰레기통 ID 추출
   console.log(`거리: ${distance}m, 쓰레기통 ID: ${trashcan_id}`); // 추출한 데이터 출력
@@ -85,7 +85,7 @@ app.post('/distance', (req, res) => {
   const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${trashcan_level}, TRASHCAN_LAST_EMAIL = '${dateTimeString}' WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
   connection.query(sql, function (err, result, fields) {
     if (err) throw err;
-    console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_LEVEL : ${trashcan_level}, TRASHCAN_LAST_EMAIL : ${dateTimeString}`);
+    console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_LEVEL : ${trashcan_level}%, 현재 시간 : ${dateTimeString}`);
     if (trashcan_level >= 80) { // TRASHCAN_LEVEL이 80 이상인 경우 메일 보내기
       const { exec } = require('child_process');
       exec('node public/mail.js', (err, stdout, stderr) => {
@@ -96,52 +96,34 @@ app.post('/distance', (req, res) => {
         console.log(stdout);
       });
     }
-    res.send('TRASHCAN_LEVEL과 TRASHCAN_LAST_EMAIL 업데이트 완료!');
+    res.send('업데이트 완료!');
   });
 });
 
-const url1 = 'http://쓰레기통1 IP/led';
-const url2 = 'http://쓰레기통2 IP/led';
+// LED 제어
+let isNight = false; // isNight 값 초기화
 
-// 쓰레기통1 LED 제어
-const controlLED1 = (status) => {
-  const options = {
-    method: 'POST',
-    body: { isNight: status },
-    json: true,
-  };
-
-  request(url1, options, (error, response, body) => {
-    if (error) throw error;
-    console.log(`쓰레기통1 LED 상태: ${body.status}`);
-  });
+const updateLEDStatus = () => {
+  const now = new Date();
+  const hour = now.getHours();
+  
+  // 현재 시간에 따라 isNight 값 업데이트
+  if (hour >= 9 && hour < 21) { // UTC+9 (한국 표준시) 적용, 6시 이후부터 다음날 6시 이전까지는 밤
+    isNight = true;
+    console.log(`LED 켜짐`);
+  } else { // 그 외는 낮
+    isNight = false;
+    console.log(`LED 꺼짐`);
+  }
 };
 
-// 쓰레기통2 LED 제어
-const controlLED2 = (status) => {
-  const options = {
-    method: 'POST',
-    body: { isNight: status },
-    json: true,
-  };
+updateLEDStatus(); // 처음 실행시 즉시 업데이트
 
-  request(url2, options, (error, response, body) => {
-    if (error) throw error;
-    console.log(`쓰레기통2 LED 상태: ${body.status}`);
-  });
-};
+setInterval(updateLEDStatus, 3600000); // 이후 1시간마다 업데이트
 
-// 한국 표준시(UTC+9) 기준으로 AM 6:00 LED 끔 / PM 6:00 LED 켬
-cron.schedule('0 9 * * *', () => {
-  console.log('오전 6시 LED 꺼짐');
-  controlLED1('off');
-  controlLED2('off');
-});
-
-cron.schedule('0 21 * * *', () => {
-  console.log('오후 6시 LED 켜짐');
-  controlLED1('on');
-  controlLED2('on');
+app.get('/data', (req, res) => {
+  console.log(isNight.toString());
+  res.send(isNight.toString());
 });
 
 function createExcelWorksheet(workbook, filteredResult, condition, region) {
