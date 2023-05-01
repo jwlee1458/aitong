@@ -46,7 +46,7 @@ app.get('/', function(req, res) {
 });
 
 router.get('/map', (req, res) => {
-  const sql = "SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK"
+  const sql = `SELECT TRASHCAN_ID_PK, LOCATION_ADDR, LOCATION_LAT, LOCATION_LONG, TRASHCAN_LEVEL FROM location_tb INNER JOIN trashcan_tb ON location_tb.LOCATION_ID_PK = trashcan_tb.LOCATION_ID_FK`;
   connection.query(sql, function (err, result, fields) {
       if (err) throw err;
       res.send(result)
@@ -126,6 +126,48 @@ app.get('/data', (req, res) => {
   res.send(isNight.toString());
 });
 
+// 매일 오전 9시에 sendOldEmail 함수 실행
+cron.schedule('0 0 * * *', () => {
+  sendOldEmail();
+});
+
+// 관리가 필요한 쓰레기통 메일 보내기
+function sendOldEmail() {
+  const now = new Date();
+  if (now.getHours() === 0 && now.getMinutes() === 0) { // UTC+9 (한국 표준시) 적용, 오전 9시 메일 발송
+    const sql = `SELECT t.TRASHCAN_ID_PK, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_EMAIL FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK`;
+    connection.query(sql, (error, results, fields) => {
+      if (error) {
+        console.error(error);
+        return;
+      }
+
+      // 7일 이후인 데이터 필터링
+      const now = new Date();
+      const filteredResult = results.filter(item => {
+        const lastEmail = new Date(item.TRASHCAN_LAST_EMAIL);
+        const diffDays = Math.floor((now - lastEmail) / (1000 * 60 * 60 * 24));
+        return diffDays >= 7;
+      });
+
+      // 중복된 이메일 필터링
+      const uniqueEmails = [...new Set(filteredResult.map(item => item.ADMIN_EMAIL))];
+
+      // TRASHCAN_ID_PK 값 저장
+      const trashcanIds = filteredResult.map(item => item.TRASHCAN_ID_PK);
+
+      const { exec } = require('child_process');
+      exec(`node mail_old.js ${uniqueEmails.join(',')} ${trashcanIds.join(',')}`, (err, stdout, stderr) => {
+        if (err) {
+          console.error(err);
+          return;
+        }
+        console.log(stdout);
+      });
+    });
+  }
+}
+
 function createExcelWorksheet(workbook, filteredResult, condition, region) {
   // 엑셀 워크시트 생성
   let worksheetName;
@@ -186,15 +228,15 @@ function createExcelWorkbook(res, filteredResult, condition, region) {
   // 엑셀 파일명 생성
   let fileName;
   if (condition === 'A') {
-    fileName = "원주시 쓰레기통.xlsx";
+    fileName = `원주시 쓰레기통.xlsx`;
   } else if (condition === 'B') {
     fileName = `${region} 쓰레기통.xlsx`;
   } else if (condition === 'C') {
-    fileName = "포화 상태 쓰레기통.xlsx";
+    fileName = `포화 상태 쓰레기통.xlsx`;
   } else if (condition === 'D') {
     fileName = `${region} 포화 상태 쓰레기통.xlsx`;
   } else if (condition === 'E') {
-    fileName = '1주일 이상 관리되지 않은 쓰레기통.xlsx';
+    fileName = `1주일 이상 관리되지 않은 쓰레기통.xlsx`;
   } else if (condition === 'F') {
     fileName = `${region} 1주일 이상 관리되지 않은 쓰레기통.xlsx`;
   }
@@ -219,7 +261,7 @@ function createExcelWorkbook(res, filteredResult, condition, region) {
 
 // 원주시 전체
 router.get('/file/list/all', (req, res) => {
-  const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
+  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK`;
   connection.query(sql, function (err, result, fields) {
     if (err) throw err;
 
@@ -246,7 +288,7 @@ router.get('/file/list/:region', (req, res) => {
 
 // 원주시 포화 상태
 router.get('/file/full/all', (req, res) => {
-  const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
+  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK`;
   connection.query(sql, function (err, result, fields) {
     if (err) throw err;
 
@@ -279,7 +321,7 @@ router.get('/file/full/:region', (req, res) => {
 
 // 원주시 1주일 이상
 router.get('/file/old/all', (req, res) => {
-  const sql = "SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK";
+  const sql = `SELECT t.TRASHCAN_ID_PK, l.LOCATION_ADDR, l.LOCATION_LAT, l.LOCATION_LONG, t.TRASHCAN_LEVEL, DATE_FORMAT(t.TRASHCAN_LAST_EMAIL, '%Y-%m-%d %H:%i:%s') as TRASHCAN_LAST_EMAIL, a.ADMIN_ID_PK, a.ADMIN_RGN FROM location_tb l INNER JOIN trashcan_tb t ON l.LOCATION_ID_PK = t.LOCATION_ID_FK INNER JOIN admin_tb a ON t.ADMIN_ID_FK = a.ADMIN_ID_PK`;
   connection.query(sql, function (err, result, fields) {
     if (err) throw err;
 
