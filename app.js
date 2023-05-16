@@ -62,7 +62,7 @@ app.get('/file_down', (req, res) => {
 app.post('/data', (req, res) => {
   const distance = req.body.distance; // 거리 데이터 추출
   const trashcan_id = req.body.trashcan_id; // 쓰레기통 ID 추출
-  console.log(`거리: ${distance}m, 쓰레기통 ID: ${trashcan_id}`); // 추출한 데이터 출력
+  console.log(`거리: ${distance}cm, 쓰레기통 ID: ${trashcan_id}`); // 추출한 데이터 출력
 
   // 현재 시간 (UTC+9 (한국 표준시) 적용)
   const now = new Date();
@@ -80,8 +80,9 @@ app.post('/data', (req, res) => {
   const dateTimeString = `${formattedDate} ${formattedTime}`;
 
   // TRASHCAN_LEVEL 값 업데이트
-  const trashcanLength = 135; // 쓰레기통의 전체 길이
-  const trashcan_level = Math.floor((distance/trashcanLength) * 100); // distance를 %로 변환하여 TRASHCAN_LEVEL 계산
+  const trashcanLength = 50; // 쓰레기통의 전체 길이
+  let trashcan_level = Math.floor((1 - distance / trashcanLength) * 100); // distance를 %로 변환하여 TRASHCAN_LEVEL 계산
+  trashcan_level = Math.max(0, trashcan_level); // 음수인 경우 0으로 설정
   const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${trashcan_level}, TRASHCAN_LAST_EMAIL = '${dateTimeString}' WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
   connection.query(sql, function (err, result, fields) {
     if (err) throw err;
