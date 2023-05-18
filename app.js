@@ -83,18 +83,56 @@ app.post('/data', (req, res) => {
   const trashcanLength = 50; // 쓰레기통의 전체 길이
   let trashcan_level = Math.floor((1 - distance / trashcanLength) * 100); // distance를 %로 변환하여 TRASHCAN_LEVEL 계산
   trashcan_level = Math.max(0, trashcan_level); // 음수인 경우 0으로 설정
+
   const sql = `UPDATE trashcan_tb SET TRASHCAN_LEVEL = ${trashcan_level}, TRASHCAN_LAST_EMAIL = '${dateTimeString}' WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
   connection.query(sql, function (err, result, fields) {
     if (err) throw err;
     console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_LEVEL : ${trashcan_level}%, 현재 시간 : ${dateTimeString}`);
-    if (trashcan_level >= 80) { // TRASHCAN_LEVEL이 80 이상인 경우 메일 보내기
-      const { exec } = require('child_process');
-      exec(`node mail_full.js ${trashcan_id}`, (err, stdout, stderr) => {
-        if (err) {
-          console.error(err);
-          return;
+    if (trashcan_level >= 65) { // TRASHCAN_LEVEL이 65 이상인 경우 TRASHCAN_EXCEED_COUNT 값 증가
+      const getExceedCountSql = `SELECT TRASHCAN_EXCEED_COUNT FROM trashcan_tb WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+      connection.query(getExceedCountSql, function (countErr, countResult, countFields) {
+        if (countErr) throw countErr;
+        const exceedCount = countResult[0].TRASHCAN_EXCEED_COUNT;
+
+        if (exceedCount === 0) { // 첫 번째 값인 경우
+          const updateExceedCountSql = `UPDATE trashcan_tb SET TRASHCAN_EXCEED_COUNT = 1 WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+          connection.query(updateExceedCountSql, function (updateErr, updateResult, updateFields) {
+            if (updateErr) throw updateErr;
+            console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_EXCEED_COUNT : 1`);
+          });
+        } else if (exceedCount === 1) { // 두 번째 값인 경우, 메일 전송 후 TRASHCAN_EXCEED_COUNT 값 초기화
+          const updateExceedCountSql = `UPDATE trashcan_tb SET TRASHCAN_EXCEED_COUNT = 2 WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+          connection.query(updateExceedCountSql, function (updateErr, updateResult, updateFields) {
+            if (updateErr) throw updateErr;
+            console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_EXCEED_COUNT : 2`);
+            const resetCountSql = `UPDATE trashcan_tb SET TRASHCAN_EXCEED_COUNT = 0 WHERE TRASHCAN_ID_PK = '${trashcan_id}'`; // 0으로 초기화
+              connection.query(resetCountSql, function (resetErr, resetResult, resetFields) {
+                if (resetErr) throw resetErr;
+                console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_EXCEED_COUNT 값 초기화`);
+              });
+
+            const { exec } = require('child_process');
+            exec(`node mail_full_http.js ${trashcan_id}`, (err, stdout, stderr) => {
+              if (err) {
+                console.error(err);
+                return;
+              }
+              console.log(stdout);
+            });
+          });
+        } else { // 1보다 큰 경우
+          const resetCountSql = `UPDATE trashcan_tb SET TRASHCAN_EXCEED_COUNT = 0 WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+          connection.query(resetCountSql, function (resetErr, resetResult, resetFields) {
+            if (resetErr) throw resetErr;
+            console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_EXCEED_COUNT 값 초기화`);
+          });
         }
-        console.log(stdout);
+      });
+    } else if (trashcan_level < 65) { // TRASHCAN_LEVEL이 65 미만인 경우 TRASHCAN_EXCEED_COUNT 값 0으로 초기화
+      const updateExceedCountSql = `UPDATE trashcan_tb SET TRASHCAN_EXCEED_COUNT = IF(TRASHCAN_EXCEED_COUNT = 1, 0, TRASHCAN_EXCEED_COUNT) WHERE TRASHCAN_ID_PK = '${trashcan_id}'`;
+      connection.query(updateExceedCountSql, function (updateErr, updateResult, updateFields) {
+        if (updateErr) throw updateErr;
+        console.log(`TRASHCAN_ID_PK : ${trashcan_id}, TRASHCAN_EXCEED_COUNT 값 초기화`);
       });
     }
     res.send('업데이트 완료!');
